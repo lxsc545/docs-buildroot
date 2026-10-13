@@ -247,6 +247,8 @@ The following sections will introduce each method respectively.
 
 ### Pin Usage Example
 
+#### Selecting pinctrl configuration usage example
+
 eth0 references the `pinctrl_gmac0` that is redefined in the solution.
 
 ```c
@@ -263,6 +265,38 @@ eth0 {
     pinctrl-names = "default";
     pinctrl-0 = <&pinctrl_gmac0_1>;
 };
+```
+
+#### Configuring interrupt pins with pinctrl controller as interrupt parent
+
+Some drivers require using pins as interrupt pins managed by the pinctrl controller (while using GPIO as the pin's `interrupt-parent` can satisfy most requirements, if support for waking the system from sleep via interrupt is needed, the pinctrl controller must be used as the `interrupt-parent`).
+
+First, refer to the kernel directory `include/dt-bindings/pinctrl/k1-x-pinctrl.h` to obtain the pin ID.
+
+For example, if a driver needs to use `GPIO58` as a pinctrl interrupt pin, first look up the pin ID:
+
+```bash
+$ grep -rn "#define GPIO_58" include/dt-bindings/pinctrl/k1-x-pinctrl.h
+68:#define GPIO_58  PINID(58)
+```
+
+The `PINID` is defined as `PINID(x) = x + 1`. Then calculate the interrupt number using the formula:
+
+```
+Interrupt number = pinid * 4
+```
+
+For `GPIO58`, the calculated interrupt number is `59 * 4 = 236`.
+
+Then fill in the interrupt number information in the corresponding device node in the DTS, specifying the interrupt-parent as the pinctrl node:
+
+```c
+some-device@0 {
+      .....
+               interrupt-parent = <&pinctrl>;
+               interrupts = <236>;
+      .....
+}
 ```
 
 ## Interface

@@ -472,7 +472,7 @@ The platform supports the following two methods for writing images:
 ##### Selecting the Flashing Medium
 
 - On supported hardware platforms, the boot medium can be switched through the **Boot Download Sel Switch** DIP switch.
-  For details, refer to the [Boot Download Sel & JTAG Sel](https://spacemit.com/community/document/info?lang=en&nodepath=hardware/eco/k1_muse_pi/pi_user_guide.md) section in the MUSE Pi User Guide.
+  For details, refer to the [Boot Download Sel & JTAG Sel](https://spacemit.com/community/document/info?lang=en&nodepath=ecohardware/k1_series/k1_muse_pi/pi_user_guide.md) section in the MUSE Pi User Guide.
 
 - For other platforms or solutions, refer to the corresponding hardware user manual.
 

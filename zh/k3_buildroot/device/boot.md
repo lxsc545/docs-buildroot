@@ -1,4 +1,4 @@
----
+﻿---
 sidebar_position: 3
 ---
 
@@ -470,7 +470,7 @@ K3 平台支持卡量产烧录。通过 **TitanFlash 工具** 可将 SD 卡制�
 ##### 刷机介质选择
 
 - 硬件平台支持通过 **Boot Download Sel Switch 拨码开关** 切换启动介质。
-  具体使用方法可参考 MUSE Pi 用户指南中的 [Boot Download Sel & JTAG Sel](https://spacemit.com/community/document/info?lang=zh&nodepath=hardware/eco/k1_muse_pi/pi_user_guide.md) 章节。
+  具体使用方法可参考 MUSE Pi 用户指南中的 [Boot Download Sel & JTAG Sel](https://spacemit.com/community/document/info?lang=zh&nodepath=ecohardware/k1_series/k1_muse_pi/pi_user_guide.md) 章节。
 
 - 其他平台或方案，请参考对应的硬件用户使用手册。
 

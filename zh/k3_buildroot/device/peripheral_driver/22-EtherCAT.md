@@ -13,7 +13,7 @@ K3 SDK 集成 IGH EtherCAT 1.6.8 主站协议栈和定制化实时网卡驱动�
 EtherCAT 通信系统架构如上图所示，由四个部分构成：
 - **应用层：** 用户应用程序，负责实现工业控制逻辑，并通过主站提供的接口与其交互。
 - **EtherCAT 主站层：** 负责协议处理、总线拓扑管理、从站配置以及分布式时钟同步等核心功能。
-- **EtherCAT 设备驱动层：** 由实时网卡驱动构成，负责 EtherCAT 数据帧的收发。
+- **EtherCAT 设备驱动层：** 由实时网卡驱动构成，负责硬件初始化及 EtherCAT 数据帧的收发。
 - **硬件层：** 底层网络接口及相关物理设备。
 
 ### 源码结构介绍
@@ -110,7 +110,7 @@ EtherCAT 相关代码位于 `drivers/net/ethercat` 目录下：
     |-- pdo.h                  
     |-- pdo_list.c                      # PDO 链表管理接口
     |-- pdo_list.h             
-    |-- reg_request.c                   # 从站寄存器读写请求接口 
+    |-- reg_request.c                   # 从站寄存器读写请求接口
     |-- reg_request.h          
     |-- rtdm.c                          # RTDM 支持
     |-- rtdm_details.h         
@@ -146,12 +146,12 @@ EtherCAT 相关代码位于 `drivers/net/ethercat` 目录下：
 | 自动从站配置 | 支持自动扫描并配置连接的从站设备，简化网络配置 |
 | 分布式时钟同步 | 实现小于 1 µs 精度的分布式时钟（DC）同步 |
 | 多协议支持 | 支持 CoE、SoE、FoE 等协议 |
-| 高实时性能 | 支持 1ms DC 周期，满足大部分工业应用的实时性要求 |
-| 多主站组合 | 支持配置多个主站，每个主站可管理两个网络设备：主设备和备用设备 |
+| 高实时性能 | 支持 500us DC 周期，满足大部分工业应用的实时性要求 |
+| 多主站支持 | 支持配置多个 EtherCAT 主站实例 |
 
 ## 配置介绍
 
-主要包括 **Kconfig 配置** 和 **DTS 配置**。
+主要包括 **Kconfig 配置** 和 **DTS 配置**。对于当前 K3 SDK 已支持的板型，无需调整内核配置或修改 DTS 即可使用 EtherCAT 功能；新板型适配或有特殊配置需求时，可参考本节。
 
 ### Kconfig 配置
 
@@ -231,33 +231,12 @@ config EC_K3_GMAC
         help
           EtherCAT device support for Spacemit K3 GMAC controller.
 ```
-> **注1：** 在 K3 平台上，若需使用 EtherCAT 功能，EtherCAT、EC_MASTER、EC_DEVICE、EC_K3_GMAC 是必选项。
-> 
-> **注2：** 在 K3 平台上，默认开启 EtherCAT、EC_MASTER、EC_DEVICE、EC_K3_GMAC 和 EC_MASTER_OF 选项，如无特殊需求，用户仅需在 DTS 中完成相应节点使能，即可使用 EtherCAT 功能（见下节）。
+> **注：** 在 K3 平台上，默认开启 EtherCAT、EC_MASTER、EC_DEVICE、EC_K3_GMAC 和 EC_MASTER_OF 选项。
 
-另外，为获得更好的实时性能，建议在内核配置中启用 `CONFIG_PREEMPT_RT`。
-```c
-config PREEMPT_RT
-        bool "Fully Preemptible Kernel (Real-Time)"
-        depends on EXPERT && ARCH_SUPPORTS_RT && !COMPILE_TEST
-        select PREEMPTION
-        help
-          This option turns the kernel into a real-time kernel by replacing
-          various locking primitives (spinlocks, rwlocks, etc.) with
-          preemptible priority-inheritance aware variants, enforcing
-          interrupt threading and introducing mechanisms to break up long
-          non-preemptible sections. This makes the kernel, except for very
-          low level and critical code paths (entry code, scheduler, low
-          level interrupt handling) fully preemptible and brings most
-          execution contexts under scheduler control.
-
-          Select this if you are building a kernel for systems which
-          require real-time guarantees.
-```
 ### DTS 配置
 
-在 DTS 中，可通过 `master-count` 配置主站数量，并定义对应的 `master` 子节点，二者需保持一致。每个 `master` 子节点中可通过 `main-device` 和 `backup-device` 分别指定主用和备用设备。
-以 `k3.dtsi` 中的默认配置为例，默认定义了 1 个 EtherCAT 主站实例 `master0`，其 `main-device` 绑定为 `eth0`，当前节点状态为 `disabled`：
+在 DTS 中，可通过 `master-count` 配置主站数量，并定义对应的 `master` 子节点，二者需保持一致。每个 `master` 子节点可通过 `main-device` 和 `backup-device` 指定用于发送 EtherCAT 帧的主设备和备用设备。注意当前版本暂未实现 `backup-device` 功能，该属性仅作预留。
+以 `k3.dtsi` 中的默认配置为例，默认定义了 1 个 EtherCAT 主站实例 `master0`，其主设备指定为 `eth0`，当前节点状态为 `disabled`：
 ```c
 ec_master: ethercat_master {
         compatible = "spacemit,igh-ec-master";
@@ -270,19 +249,16 @@ ec_master: ethercat_master {
 };
 ```
 
-用户若需使用 EtherCAT，最简单的方式是在方案 DTS 中直接使能 `ec_master` 节点，并将对应网口的 `compatible` 修改为`spacemit,k3-ec-gmac`，配置如下：
+用户若需使用 EtherCAT 主站，最简单的方式是在板级 DTS 中直接使能 `ec_master` 节点：
 
 ```c
 &ec_master {
 	status = "okay";
 };
 
-&eth0 {
-	compatible = "spacemit,k3-ec-gmac", "snps,dwmac-5.10a";
-}
 ```
 
-如需修改配置，可以在方案 DTS 中覆盖 `ec_master` 中其他属性，例如配置两个主站：`master0` 和 `master1`，`master0` 使用 `eth1`、 `master1` 使用 `eth0`：
+若需修改配置，可以在板级 DTS 中覆盖 `ec_master` 中其他属性，例如配置两个主站：`master0` 和 `master1`，`master0` 使用 `eth1`、 `master1` 使用 `eth0`：
 ```c
 &ec_master {
         master-count = <2>;
@@ -295,14 +271,78 @@ ec_master: ethercat_master {
                 main-device = <&eth0>;
         };
 };
+```
 
-&eth0 {
-	compatible = "spacemit,k3-ec-gmac", "snps,dwmac-5.10a";
-}
+## 使用介绍
+本节对 K3 EtherCAT 功能使用做简单介绍。
 
-&eth1 {
-	compatible = "spacemit,k3-ec-gmac", "snps,dwmac-5.10a";
-}
+### 安装 RT 内核
+
+在运行 EtherCAT 应用程序前，为获得更好的实时性能，建议使用 RT 内核：
+
+step1: 安装内核包
+```bash
+sudo apt update
+sudo apt install linux-image-6.18.3-rt
+```
+
+step2: 重启系统
+```bash
+sudo reboot
+```
+
+step3: 验证内核版本
+```bash
+uname -r
+```
+
+输出中应包含 rt 字样
+
+### 切换 GMAC 驱动
+
+K3 GMAC 默认绑定 Ethernet 驱动，可在运行时切换至 EtherCAT 实时网卡驱动。以下以 k3 deb1 为例，其 GMAC 对应的 platform device 为 cac80000.ethernet，切换方法如下：
+
+Step 1：指定 EtherCAT 驱动
+```bash
+echo dwmac-spacemit-ethqos-ethercat > /sys/bus/platform/devices/cac80000.ethernet/driver_override
+```
+
+Step 2：解绑 Ethernet 驱动
+```bash
+echo cac80000.ethernet > /sys/bus/platform/drivers/dwmac-spacemit-ethqos/unbind
+```
+
+Step 3：绑定 EtherCAT 驱动
+```bash
+echo cac80000.ethernet > /sys/bus/platform/drivers/dwmac-spacemit-ethqos-ethercat/bind
+```
+
+> **补充1：** 如需切换回 Ethernet 驱动，操作顺序与上述步骤类似：先将 driver_override 设置为 dwmac-spacemit-ethqos，再解绑 EtherCAT 驱动，最后重新绑定 Ethernet 驱动。
+
+> **补充2：** 如需系统启动后自动切换至 EtherCAT 驱动，可参考下面方法创建 systemd service：
+
+step1: 创建 systemd service
+```bash
+cat > /etc/systemd/system/gmac-ethercat.service <<'EOF'
+[Unit]
+Description=Bind GMAC to EtherCAT driver
+After=systemd-udev-settle.service
+Before=NetworkManager.service systemd-networkd.service networking.service
+
+[Service]
+Type=oneshot
+ExecStart=/bin/sh -c 'echo dwmac-spacemit-ethqos-ethercat > /sys/bus/platform/devices/cac80000.ethernet/driver_override; echo cac80000.ethernet > /sys/bus/platform/drivers/dwmac-spacemit-ethqos/unbind; echo cac80000.ethernet > /sys/bus/platform/drivers/dwmac-spacemit-ethqos-ethercat/bind'
+RemainAfterExit=yes
+
+[Install]
+WantedBy=multi-user.target
+EOF
+```
+step2: 启用服务
+```bash
+systemctl daemon-reload
+systemctl enable gmac-ethercat.service
+systemctl start gmac-ethercat.service
 ```
 
 ## 接口介绍
@@ -402,7 +442,6 @@ EtherCAT 主站测试步骤：
 启动日志示例如下：
 
 ```c
-[  966.525910] k1x_ec_emac cac80000.ethernet ecm0 (uninitialized): Link is Up - 100Mbps/Full - flow control off
 [  966.535906] EtherCAT 0: Link state of ecm0 changed to UP.
 [  966.552545] EtherCAT 0: 1 slave(s) responding on main device.
 [  966.558389] EtherCAT 0: Slave states on main device: INIT.
@@ -412,55 +451,66 @@ EtherCAT 主站测试步骤：
 [  966.756564] EtherCAT 0: Slave states on main device: PREOP.
 
 ```
+在测试前，为减少其他任务调度对实时性能的影响，可以通过 cgroup v2 隔离指定 CPU，并将测试程序运行在该 CPU 上。例如隔离 CPU 2：
 
-测试用例可基于 [EtherLab 官方示例](https://gitlab.com/etherlab.org/ethercat) 中的 `examples/dc_user/main.c` 进行开发，以下示例在 1 ms DC 通讯周期下，连接 1 个从站进行测试，输出如下：
+```bash
+cd /sys/fs/cgroup
+
+echo +cpuset > cgroup.subtree_control
+mkdir -p rt-cpu2
+echo 2 > rt-cpu2/cpuset.cpus
+echo isolated > rt-cpu2/cpuset.cpus.partition
+```
+
+然后将测试程序运行在该隔离 CPU 上：
+```bash
+bash -c '
+echo $$ > /sys/fs/cgroup/rt-cpu2/cgroup.procs
+exec env EC_RT_CPU=2 /path/to/test_program
+'
+```
+测试用例可基于 [EtherLab 官方示例](https://gitlab.com/etherlab.org/ethercat) 中的 `examples/dc_user/main.c` 进行开发，以下示例在 500us DC 通讯周期下，连接 1 个从站进行 24h 测试，输出如下：
 
 ```c
-period         995180 ...    1004620
-exec             4680 ...      48215
-latency          3125 ...       7421
-
-period         995420 ...    1004875
-exec             4755 ...      47106
-latency          3268 ...       7354
-
-period         995060 ...    1004510
-exec             4898 ...      46892
-latency          3415 ...       7288
-
-period         995330 ...    1004790
-exec             4528 ...      47936
-latency          3372 ...       7410
-
-period         995210 ...    1004685
-exec             4680 ...      48524
-latency          3291 ...       7398
-
-period         995560 ...    1004980
-exec             4712 ...      47680
-latency          3446 ...       7305
-
-period         995140 ...    1004565
-exec             4586 ...      48312
-latency          3218 ...       7442
-
-period         995470 ...    1004890
-exec             4864 ...      46975
-latency          3364 ...       7386
-
-period         995090 ...    1004470
-exec             4638 ...      48744
-latency          3482 ...       7468
-
-period         995380 ...    1004760
-exec             4781 ...      47296
-latency          3337 ...       7349
+progress: 86393/86400
+period        485042 ...   517083
+exec            6709 ...   39833
+latency         3843 ...   21318
+progress: 86394/86400
+period        485042 ...   517083
+exec            6709 ...   39833
+latency         3843 ...   21318
+progress: 86395/86400
+period        485042 ...   517083
+exec            6709 ...   39833
+latency         3843 ...   21318
+progress: 86396/86400
+period        485042 ...   517083
+exec            6709 ...   39833
+latency         3843 ...   21318
+progress: 86397/86400
+period        485042 ...   517083
+exec            6709 ...   39833
+latency         3843 ...   21318
+progress: 86398/86400
+period        485042 ...   517083
+exec            6709 ...   39833
+latency         3843 ...   21318
+progress: 86399/86400
+period        485042 ...   517083
+exec            6709 ...   39833
+latency         3843 ...   21318
+progress: 86400/86400
+period        485042 ...   517083
+exec            6709 ...   39833
+latency         3843 ...   21318
+[84309.611731] EtherCAT 0: Releasing master
 ```
 
 **注：**
-- `period`：给出的数值是每秒内通讯周期波动范围。
-- `exec`：给出的数值是每秒内主站周期任务执行时间波动范围。
-- `latency`：给出的数值是每秒内主站唤醒延迟波动范围。
+- `period`：给出的数值是整个测试周期内通讯周期的波动范围。
+- `exec`：给出的数值是整个测试周期内主站周期任务执行时间的波动范围。
+- `latency`：给出的数值是整个测试周期内主站唤醒延迟的波动范围。
 
 ## FAQ
 

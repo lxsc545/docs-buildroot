@@ -4,6 +4,52 @@ sidebar_position: 1
 
 # Buildroot 1.0
 
+## v1.0.9 更新说明
+
+发布日期：2026-09-18
+
+### 主要更新
+
+- 支持 K3 安全固件（OP-TEE）构建
+- 支持 ROS 相关的 HID sensor 配置
+- 支持 Xbox 手柄
+- 支持 LPDDR5 与 LPDDR4X 可选编译
+- 修复 C3 预热以避免 CPU 时钟 FC 超时问题
+- 修复 ccu_mix.c 潜在的 Load address misaligned 异常问题
+- 调整 opensbi/esos/u-boot debian打包方式
+- 优化 bootloader 启动速度
+
+## v1.0.8 更新说明
+
+发布日期：2026-09-16
+
+### 主要更新
+
+- 支持 FM25LQ128I3 spi-nor flash
+- 支持 imx219 摄像头 spacemit,dt-filter
+- 支持 esos 编译 debian 包功能
+- 修复 K3 Pico-itx 风扇控制稳定性
+- 修复 usb hub 端口复位后增加 TRSTRCY 恢复延迟
+- 修复 SPL 阶段 P1 non-volatile 寄存器值恒为 0xf0 的问题
+- 修复 pcie k3 deinit 函数
+
+## v1.0.7 更新说明
+
+发布日期：2026-08-26
+
+### 主要更新
+
+- 支持 RISC-V64 加密加速
+- 支持读取 K3 chipid
+- 修复 PCIe 唤醒恢复时链路训练失败问题
+- 修复 MIPI DSI 面板时未切换到 DSI 功能（默认走DP/eDP 导致显示异常）
+- 修复 EDID 模式被重复删除的问题
+- 修复 UFS spacemit 读写混合序列化
+- 修复 fastboot oem_read 在 >4GB 偏移时的截断问题
+- 修复 DDR reg_base 掩码越界校验
+- 修复 USB hub 端口复位后增加 TRSTRCY 恢复延迟
+- 优化 K3 OPP 表，采用 efuse 校准值作为热温参考
+
 ## v1.0.5 更新说明
 
 发布日期：2026-07-23
