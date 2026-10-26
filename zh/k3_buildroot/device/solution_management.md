@@ -218,7 +218,7 @@ K3方案定制根文件系统可通过修改`buildroot-ext/board/spacemit/k3/tar
 
 2. 把文件、目录放在target_overlay目录，目录结构按`output/xxx/target/`下面的子目录结构组织，buildroot打包target目录前会把target_overlay拷贝过去覆盖`output/xxx/target/`。
 
-## 添加新方案
+## 添加新构建方案
 
 1. 在`buildroot-ext/board/spacemit/`新建方案目录，一般命名方式：芯片名称-板子名称/。
 
@@ -235,3 +235,74 @@ K3方案定制根文件系统可通过修改`buildroot-ext/board/spacemit/k3/tar
   - 指向新的打包脚本prepare_image.sh。
 
 6. 编译。
+
+### 新方案刷机启动
+
+新增设备方案时，可参考[设备管理](https://spacemit.com/community/document/info?lang=zh&nodepath=software/SDK/buildroot/k3_buildroot/device/device_management.md)。
+
+**注意**：
+
+- 非首次编译时，新增设备树后需要重新执行 `make envconfig`，再执行 `make uboot-rebuild && make linux-rebuild && make` 重新编译并打包。
+
+
+
+板子首次刷机启动前，先确认以下信息：
+- 物料支持列表，[k3物料支持列表](https://spacemit.com/community/document/info?lang=zh&nodepath=hardware/key_stone/k3/k3_hw/k3_hw_avl.md)，对于未支持列表，可能需要先参考外设文档进行适配。
+- 是否有新增 DTS 方案。如果有适配自定义的dts方案，需要写板号product_name。
+- DDR型号。可参考[ddr外设](https://www.spacemit.com/community/document/info?lang=zh&nodepath=software/SDK/buildroot/k3_buildroot/device/peripheral_driver/ddr.md)。未支持的ddr型号需要先进行驱动适配。
+- pmic型号，可参考[pmic外设](https://spacemit.com/community/document/info?lang=zh&nodepath=software/SDK/buildroot/k3_buildroot/device/peripheral_driver/14-PMIC.md)。未支持的pmic型号，需要先做驱动适配。
+- UFS型号。如果基于UFS启动，可参考[ufs外设](https://spacemit.com/community/document/info?lang=zh&nodepath=software/SDK/buildroot/k3_buildroot/device/peripheral_driver/ufs.md)。未支持的UFS物料需要先适配驱动。基于UFS启动方案，可以根据刷机串口log判断是否有识别到blk设备。
+- 板子上是否接入了 EEPROM且能正常识别。(可根据写号工具写号后，断电重启再读取验证)。硬件 EEPROM 必须连接到 I2C6（GPIO 120/121 或 61/62）或 I2C2（GPIO 46/47）。eeprom的作用是可以写入不同类型的板号、ddr型号、pmic型号等信息，系统启动后会根据对应key信息加载启动。**对于不正确的key信息可能会导致刷机启动失败**
+
+
+
+#### 板子有接入 EEPROM
+
+参考[写号工具](https://www.spacemit.com/community/document/info?lang=zh&nodepath=tools/user_guide/flasher_user_guide.md)，将 DDR型号、设备树的板号、pmic等信息写入 EEPROM(UFS不需要写key)
+![写号工具配置 DDR 料号](./static/new-solution-k3_key.png)
+
+
+**注意**：
+
+- 需要先取消勾选才能修改，修改完后再勾选。对于不确定的配置项，不要勾选。
+- 如果没有新增设备树，则不要勾选 `product_name`，默认会加载 `k3_deb1`；填写不存在的设备树名称会导致找不到 DTB。
+
+#### 板子没有或者不确定是否有 EEPROM
+
+**建议先做好eeprom的适配，以下修改默认值的方式仅供参考**
+
+修改 DDR 和默认方案配置后，重新编译 U-Boot 和镜像：
+
+```shell
+make uboot-rebuild && make
+```
+
+以下示例将 DDR 料号修改为单 rank、4 GB 的 `MT62F1G32D2DS`，并将默认方案设为 `k3_example`，注意以下仅作为参考，需要根据实际来修改：
+
+```diff
+user:~/workspace/k3_buildroot_sdk_pub/bsp-src/uboot-2022.10$ git diff arch/riscv/dts/k3_spl.dts include/
+diff --git a/arch/riscv/dts/k3_spl.dts b/arch/riscv/dts/k3_spl.dts
+index d95d77886f..f4d79a8653 100644
+--- a/arch/riscv/dts/k3_spl.dts
++++ b/arch/riscv/dts/k3_spl.dts
+@@ -231,7 +231,7 @@
+                ddr@cb000000 {
+                        u-boot,dm-spl;
+                        compatible = "spacemit,snps-lp45";
+-                       part-number = "MT62F2G32D4DS";
++                       part-number = "MT62F1G32D2DS";
+                        reg = <0x00000000 0xcb000000 0x00000000 0x00400000>,
+                              <0x00000000 0xcc000000 0x00000000 0x00400000>;
+                        reg-names = "ddrc0", "ddrc1";
+diff --git a/include/configs/k3.h b/include/configs/k3.h
+index f106a03d7d..ab6905a9e4 100644
+--- a/include/configs/k3.h
++++ b/include/configs/k3.h
+@@ -102,10 +102,10 @@
+ #define K3_NOR_UFS_DEVNUM_DEFAULT      (0)
+ #define K3_NOR_EMMC_DEVNUM_DEFAULT     (MMC_DEV_EMMC)
+
+-#define DEFAULT_PRODUCT_NAME           "k3_deb1"
++#define DEFAULT_PRODUCT_NAME           "k3_example"
+ #define BOOTFS_NAME                    ("bootfs")
+```
